@@ -11,6 +11,7 @@ const std = @import("std");
 const rl = @import("raylib");
 const theme = @import("theme.zig");
 const animate = @import("animate.zig");
+const ui_draw = @import("draw.zig");
 
 pub const MAX_BITS: usize = 32;
 
@@ -43,6 +44,56 @@ pub const BitGrid = struct {
     pub fn init(bit_count: usize) BitGrid {
         std.debug.assert(bit_count > 0 and bit_count <= MAX_BITS);
         return .{ .bit_count = bit_count };
+    }
+
+    /// Change the number of active bits, resetting all bit values and animations.
+    /// Call `layout()` or `layoutInRect()` afterwards to recompute pad positions.
+    pub fn setBitCount(self: *BitGrid, new_count: usize) void {
+        std.debug.assert(new_count > 0 and new_count <= MAX_BITS);
+        self.bit_count = new_count;
+        self.bits = [_]bool{false} ** MAX_BITS;
+        self.pads = [_]Pad{.{}} ** MAX_BITS;
+        self.hovered = null;
+        self.just_toggled = null;
+        // total_time preserved for continuous pulse animation
+    }
+
+    /// Compute pad rectangles centered within a bounding rectangle.
+    /// Useful for placing the grid inside a column rather than across the full screen.
+    pub fn layoutInRect(self: *BitGrid, bx: f32, by: f32, bw: f32) void {
+        const count_f: f32 = @floatFromInt(self.bit_count);
+        const gap: f32 = if (self.bit_count <= 4) 12 else 6;
+
+        // Count nibble boundaries
+        const nibble_boundaries: f32 = if (self.bit_count > 4)
+            @floatFromInt((self.bit_count - 1) / 4)
+        else
+            0;
+        const total_nibble_extra = nibble_boundaries * self.nibble_gap;
+
+        const available = bw - gap * (count_f - 1) - total_nibble_extra;
+        const pad_w: f32 = @min(self.pad_height, available / count_f);
+        const pad_h: f32 = self.pad_height;
+
+        const row_w = pad_w * count_f + gap * (count_f - 1) + total_nibble_extra;
+        const x0 = bx + (bw - row_w) * 0.5;
+
+        var i: usize = 0;
+        var x_cursor: f32 = x0;
+        while (i < self.bit_count) : (i += 1) {
+            if (i > 0 and i % 4 == 0) {
+                x_cursor += self.nibble_gap;
+            }
+
+            const old_press = self.pads[i].press_t;
+            const old_flash = self.pads[i].flash_t;
+            self.pads[i] = .{
+                .rect = .{ .x = x_cursor, .y = by, .width = pad_w, .height = pad_h },
+                .press_t = old_press,
+                .flash_t = old_flash,
+            };
+            x_cursor += pad_w + gap;
+        }
     }
 
     /// Compute pad rectangles to center the row horizontally at the given y offset.
@@ -129,9 +180,9 @@ pub const BitGrid = struct {
             // ── Layer 1: Glow (ON pads only) ────────────────
             if (on) {
                 const glow_strength: f32 = if (is_hovered) 1.3 else (0.7 + pulse * 0.3);
-                drawGlowLayer(r, 14, theme.glow_outer, glow_strength);
-                drawGlowLayer(r, 7, theme.glow_mid, glow_strength);
-                drawGlowLayer(r, 3, theme.glow_inner, glow_strength);
+                ui_draw.glowLayer(r, 14, theme.glow_outer, glow_strength);
+                ui_draw.glowLayer(r, 7, theme.glow_mid, glow_strength);
+                ui_draw.glowLayer(r, 3, theme.glow_inner, glow_strength);
             }
 
             // ── Layer 2: 3D depth edge ──────────────────────
@@ -240,21 +291,3 @@ pub const BitGrid = struct {
     }
 };
 
-// ── Private helpers ──────────────────────────────────────────
-
-/// Draw a single glow layer: an expanded translucent rounded rect.
-fn drawGlowLayer(r: rl.Rectangle, expand: f32, base_color: rl.Color, intensity: f32) void {
-    const alpha: u8 = @intFromFloat(std.math.clamp(
-        @as(f32, @floatFromInt(base_color.a)) * intensity,
-        0.0,
-        255.0,
-    ));
-    const gc = rl.Color{ .r = base_color.r, .g = base_color.g, .b = base_color.b, .a = alpha };
-    const gr = rl.Rectangle{
-        .x = r.x - expand,
-        .y = r.y - expand,
-        .width = r.width + expand * 2,
-        .height = r.height + expand * 2,
-    };
-    rl.drawRectangleRounded(gr, 0.15, 8, gc);
-}
