@@ -1,27 +1,58 @@
 const std = @import("std");
-const algorithms_visually = @import("algorithms_visually");
+const av = @import("algorithms_visually");
+
+const Visualization = enum {
+    bit_piano,
+    message_box,
+};
+
+fn printHelp() void {
+    const help =
+        \\Usage: zig build run -- <visualization>
+        \\
+        \\Available visualizations:
+        \\  --bit-piano       Interactive binary number pad (8 bits)
+        \\  --message-box     Raygui dialog demo
+        \\
+        \\Options:
+        \\  -h, --help        Show this help message
+        \\
+    ;
+    std.debug.print(help, .{});
+}
 
 pub fn main() !void {
-    // Prints to stderr, ignoring potential errors.
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
-    try algorithms_visually.bufferedPrint();
-}
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
 
-test "simple test" {
-    const gpa = std.testing.allocator;
-    var list: std.ArrayList(i32) = .empty;
-    defer list.deinit(gpa); // Try commenting this out and see if zig detects the memory leak!
-    try list.append(gpa, 42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
-}
+    var it = try std.process.argsWithAllocator(allocator);
+    defer it.deinit();
+    _ = it.next(); // skip program name
 
-test "fuzz example" {
-    const Context = struct {
-        fn testOne(context: @This(), input: []const u8) anyerror!void {
-            _ = context;
-            // Try passing `--fuzz` to `zig build test` and see if it manages to fail this test case!
-            try std.testing.expect(!std.mem.eql(u8, "canyoufindme", input));
+    var selected: ?Visualization = null;
+
+    while (it.next()) |arg| {
+        if (std.mem.eql(u8, arg, "-h") or std.mem.eql(u8, arg, "--help")) {
+            printHelp();
+            return;
+        } else if (std.mem.eql(u8, arg, "--bit-piano")) {
+            selected = .bit_piano;
+        } else if (std.mem.eql(u8, arg, "--message-box")) {
+            selected = .message_box;
+        } else {
+            std.debug.print("Unknown argument: {s}\n\n", .{arg});
+            printHelp();
+            return error.InvalidArgument;
         }
-    };
-    try std.testing.fuzz(Context{}, Context.testOne, .{});
+    }
+
+    if (selected) |viz| {
+        switch (viz) {
+            .bit_piano => try av.viz.bit_piano.runBitPiano(),
+            .message_box => try av.viz.message_box.runMessageBox(),
+        }
+    } else {
+        printHelp();
+    }
 }
