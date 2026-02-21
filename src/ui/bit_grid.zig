@@ -36,9 +36,11 @@ pub const BitGrid = struct {
     total_time: f32 = 0.0,
     /// Height of each pad in pixels. Default 90 preserves legacy behavior.
     pad_height: f32 = 90,
-    /// Extra horizontal gap inserted at every nibble boundary (every 4 bits).
-    /// Default 0 means no nibble grouping.
+    /// Extra horizontal gap inserted at every group boundary.
+    /// Default 0 means no grouping gap.
     nibble_gap: f32 = 0,
+    /// Number of bits per visual group. Default 4 (nibble). Set to 3 for octal.
+    group_size: usize = 4,
 
     /// Create a new BitGrid with the given number of bits, all initially off.
     pub fn init(bit_count: usize) BitGrid {
@@ -61,27 +63,28 @@ pub const BitGrid = struct {
     /// Compute pad rectangles centered within a bounding rectangle.
     /// Useful for placing the grid inside a column rather than across the full screen.
     pub fn layoutInRect(self: *BitGrid, bx: f32, by: f32, bw: f32) void {
+        std.debug.assert(self.group_size > 0);
         const count_f: f32 = @floatFromInt(self.bit_count);
         const gap: f32 = if (self.bit_count <= 4) 12 else 6;
 
-        // Count nibble boundaries
-        const nibble_boundaries: f32 = if (self.bit_count > 4)
-            @floatFromInt((self.bit_count - 1) / 4)
+        // Count group boundaries
+        const group_boundaries: f32 = if (self.bit_count > self.group_size)
+            @floatFromInt((self.bit_count - 1) / self.group_size)
         else
             0;
-        const total_nibble_extra = nibble_boundaries * self.nibble_gap;
+        const total_group_extra = group_boundaries * self.nibble_gap;
 
-        const available = bw - gap * (count_f - 1) - total_nibble_extra;
+        const available = bw - gap * (count_f - 1) - total_group_extra;
         const pad_w: f32 = @min(self.pad_height, available / count_f);
         const pad_h: f32 = self.pad_height;
 
-        const row_w = pad_w * count_f + gap * (count_f - 1) + total_nibble_extra;
+        const row_w = pad_w * count_f + gap * (count_f - 1) + total_group_extra;
         const x0 = bx + (bw - row_w) * 0.5;
 
         var i: usize = 0;
         var x_cursor: f32 = x0;
         while (i < self.bit_count) : (i += 1) {
-            if (i > 0 and i % 4 == 0) {
+            if (i > 0 and i % self.group_size == 0) {
                 x_cursor += self.nibble_gap;
             }
 
@@ -98,30 +101,31 @@ pub const BitGrid = struct {
 
     /// Compute pad rectangles to center the row horizontally at the given y offset.
     pub fn layout(self: *BitGrid, screen_width: i32, y_offset: f32) void {
+        std.debug.assert(self.group_size > 0);
         const count_f: f32 = @floatFromInt(self.bit_count);
         const margin: f32 = 18;
         const total_w: f32 = @as(f32, @floatFromInt(screen_width)) - margin * 2;
         const gap: f32 = 10;
 
-        // Count nibble boundaries: gaps between groups of 4
-        const nibble_boundaries: f32 = if (self.bit_count > 4)
-            @floatFromInt((self.bit_count - 1) / 4)
+        // Count group boundaries
+        const group_boundaries: f32 = if (self.bit_count > self.group_size)
+            @floatFromInt((self.bit_count - 1) / self.group_size)
         else
             0;
-        const total_nibble_extra = nibble_boundaries * self.nibble_gap;
+        const total_group_extra = group_boundaries * self.nibble_gap;
 
-        const available = total_w - gap * (count_f - 1) - total_nibble_extra;
+        const available = total_w - gap * (count_f - 1) - total_group_extra;
         const pad_w: f32 = @min(90, available / count_f);
         const pad_h: f32 = self.pad_height;
 
-        const row_w = pad_w * count_f + gap * (count_f - 1) + total_nibble_extra;
+        const row_w = pad_w * count_f + gap * (count_f - 1) + total_group_extra;
         const x0 = (@as(f32, @floatFromInt(screen_width)) - row_w) * 0.5;
 
         var i: usize = 0;
         var x_cursor: f32 = x0;
         while (i < self.bit_count) : (i += 1) {
-            // Insert nibble gap at 4-bit boundaries
-            if (i > 0 and i % 4 == 0) {
+            // Insert group gap at group boundaries
+            if (i > 0 and i % self.group_size == 0) {
                 x_cursor += self.nibble_gap;
             }
 
