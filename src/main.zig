@@ -4,6 +4,7 @@ const av = @import("algorithms_visually");
 const Visualization = enum {
     bit_piano,
     bit_patterns,
+    hex_piano,
     message_box,
 };
 
@@ -14,6 +15,7 @@ fn printHelp() void {
         \\Available visualizations:
         \\  --bit-piano       Interactive binary number pad (8 bits)
         \\  --bit-patterns    Explore 2^n exponential growth (1, 2, 8 bits)
+        \\  --hex-piano       Interactive hex number pad (16 bits)
         \\  --message-box     Raygui dialog demo
         \\
         \\Options:
@@ -42,6 +44,8 @@ pub fn main() !void {
             selected = .bit_piano;
         } else if (std.mem.eql(u8, arg, "--bit-patterns")) {
             selected = .bit_patterns;
+        } else if (std.mem.eql(u8, arg, "--hex-piano")) {
+            selected = .hex_piano;
         } else if (std.mem.eql(u8, arg, "--message-box")) {
             selected = .message_box;
         } else {
@@ -55,6 +59,7 @@ pub fn main() !void {
         switch (viz) {
             .bit_piano => try av.viz.bit_piano.runBitPiano(),
             .bit_patterns => try av.viz.bit_patterns.runBitPatterns(),
+            .hex_piano => try av.viz.hex_piano.runHexPiano(),
             .message_box => try av.viz.message_box.runMessageBox(),
         }
     } else {
